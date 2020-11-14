@@ -11,7 +11,6 @@ import android.os.Build;
 import android.util.Log;
 import android.view.SurfaceView;
 import android.view.WindowManager;
-import android.widget.TextView;
 
 import com.example.doatest.model.Location;
 
@@ -20,17 +19,14 @@ import org.opencv.android.CameraBridgeViewBase;
 import org.opencv.android.LoaderCallbackInterface;
 import org.opencv.android.OpenCVLoader;
 import org.opencv.core.Core;
-import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.core.Point;
 import org.opencv.core.Scalar;
 import org.opencv.imgproc.Imgproc;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Random;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -48,34 +44,50 @@ public class MainActivity extends AppCompatActivity
     private static final String TAG = "opencv";
     private Mat matInput;
     private Mat matResult;
-    private Mat retMat;
+
     private List<Ball>balls = new CopyOnWriteArrayList<>();
-    private List<Color> colors = new ArrayList<Color>() {{
-        add(new Color(231, 51, 42));
-        add(new Color(236, 141, 0));
-        add(new Color(248, 228, 0));
-        add(new Color(52, 174, 73));
-        add(new Color(70, 186, 172));
-        add(new Color(50, 140, 204));
-        add(new Color(147, 84, 158));
-    }};
 
-    Random random_r = new Random();
-    Random random_g = new Random();
-    Random random_b = new Random();
-    Random random_size = new Random();
-    Random random_alpha = new Random();
+    Random random_theta = new Random();
 
-    int iter_num = 0;
+    int itNum = 0;
     int direction = 270;
     int volume = 0;
-    int size = 10;
+    int freq = 0;
+
+    int colorIdx = 0;
+
+    ///////////////////////////////////////////////////////////////
+    private List<Color> colors = new ArrayList<Color>() {{
+        add(new Color(214, 41, 52));
+        add(new Color(214, 89, 46));
+        add(new Color(214, 150, 56));
+        add(new Color(214, 192, 62));
+        add(new Color(207, 214, 64));
+        add(new Color(143, 214, 68));
+        add(new Color(50, 214, 114));
+        add(new Color(62, 214, 192));
+        add(new Color(63, 200, 214));
+        add(new Color(57, 155, 214));
+        add(new Color(118, 66, 214));
+        add(new Color(214, 48, 214));
+    }};
+
+    int CALC_RATE = 10;         // 몇 frame 마다 새로운 ball 정보를 받아 올 것인가
+    int MIN_VOLUME = 200;       // 어느 볼륨 미만은 무시 할 것인가
+    int MAX_VOLUME = 2000;      // 어느 볼륨 이상은 무시 할 것인가
+    int MIN_BALL_SIZE = 10;     // 최소 원 사이즈
+    int BALL_SIZE = 40;         // 최대 원 사이즈 => MIN_BALL_SIZE + (현재 볼륨 / MAX_VOLUME) * BALL_SIZE
+    int STEP = 10;              // 몇 번 움직이고 끝날 것인가
+    int RADIUS = 400;           // 공이 중심부터 움직일 반경
+    double SPEED = 0.3;         // 공이 움직이는 속도
+    double ALPHA = 0.6;
+
+    // ps : 이동 속도 = (radius / STEP) * SPEED
+
+    ///////////////////////////////////////////////////////////////
+
 
     private CameraBridgeViewBase mOpenCvCameraView;
-    private TextView text;
-
-    public native void ConvertRGBtoGray(long matAddrInput, long matAddrResult, Ball balls);
-
 
     static {
         System.loadLibrary("opencv_java4");
@@ -163,7 +175,7 @@ public class MainActivity extends AppCompatActivity
 
         matResult = inputFrame.rgba();
 
-        if (iter_num % 7 == 0) {
+        if (itNum % CALC_RATE == 0) {
 
             Retrofit retrofit = new Retrofit.Builder()
                     .baseUrl("http://13.209.217.37/")
@@ -182,34 +194,33 @@ public class MainActivity extends AppCompatActivity
                     for (Location loc : locs) {
                         direction = loc.location;
                         volume = loc.volume;
-                        if (volume > 2000 && volume < 300) continue;
-                        if (volume > 200 && volume < 1000) volume = (int) ((volume / 2000.0) * 60);
-                        else volume = (int) ((volume / 2000.0) * 40);
+                        freq = loc.freq;
 
-//                        size = loc.size;
+                        if (freq > 1200) colorIdx = 11;
+                        else colorIdx = freq / 100;
+
                         Log.d("DATA", String.format("%d %d", loc.location, volume));
-////                        else if (direction >= 270 && direction <= 360) direction = direction - 360;
-////                        if (direction > 90 && direction < 180) continue;
-////                        else if (direction >= 0 && direction <= 90) direction = direction;
-////                        int x = 1000 + ((-1) * (direction - 0) * (1000/90));
-////                        int y = 400 - ((-1) * ((Math.abs(direction -);
-//                        if (direction > 180 && direction < 270) contin 0) * (400/90))));
+
 
                         if (0 <= direction && direction <= 90) direction = (-1) * direction;
                         else if (90 < direction && direction < 270) continue;
                         else if (direction <= 360) direction = (-1) * (direction - 360);
 
+                        if (volume > MAX_VOLUME || volume < MIN_VOLUME) continue;
+                        volume = (int) ((volume / (double) MAX_VOLUME) * BALL_SIZE) + MIN_BALL_SIZE;
+
                         int x = (int) (matResult.width() / 2 + (((double) direction / 90.0) * (matResult.width() / 2)));
                         int y = matResult.height() / 2;
 
-                        Log.d("API", String.format("%d %d %d", direction, (int) ((double) (Math.abs(direction) / 90.0) * (matResult.width() / 2)), y));
+                        Color new_color = colors.get(colorIdx);
 
-                        Color new_color = colors.get(random_r.nextInt(colors.size()));
-
-                        Ball new_ball = new Ball(x, y, 400, random_alpha.nextInt(360), new_color.r, new_color.g, new_color.b, volume, 10, (float) 0.3);
+                        Ball new_ball = new Ball(x, y, RADIUS, random_theta.nextInt(360), new_color.r, new_color.g, new_color.b, volume, STEP, SPEED);
                         if (Math.abs(new_ball.dx) < 4 || Math.abs(new_ball.dy) < 4)
                             continue;
-                        Log.d("API", String.format("%d %d", new_ball.dx, new_ball.dy));
+
+                        Log.d("DATA", String.format("%d %d", loc.location, volume));
+                        Log.d("API", String.format("%d %d %d", direction, (int) ((Math.abs(direction) / 90.0) * (matResult.width() / 2)), y));
+                        Log.d("BALL SIZE", String.format("%d %d", new_ball.dx, new_ball.dy));
 
                         balls.add(0, new_ball);
                     }
@@ -222,23 +233,19 @@ public class MainActivity extends AppCompatActivity
             });
         }
 
-        Mat temp = new Mat(matResult.height(), matResult.width(), CvType.CV_64FC1);
         matInput = matResult.clone();
-//        matResult.setTo(new Scalar(255, 255, 255));
-//        retMat = inputFrame.rgba();
-//
         for (Ball ball: balls) {
-//            Imgproc.circle(matResult, new Point(ball.x,ball.y), random_size.nextInt(100), new Scalar(ball.r, ball.g, ball.b, 0.1), -1);
-            Imgproc.circle(matResult, new Point(ball.x,ball.y), ball.size, new Scalar(ball.r, ball.g, ball.b, 200), -1);
+            Log.d("API", String.format("%d %d %d", ball.x, ball.y, ball.size));
+            Imgproc.circle(matResult, new Point(ball.x,ball.y), ball.size, new Scalar(ball.r, ball.g, ball.b), -1);
             ball.move();
             if (ball.delete()) {
                 balls.remove(ball);
             }
         }
 
-        Core.addWeighted(matResult, 0.6, matInput, 0.4, 0, matResult);
+        Core.addWeighted(matResult, ALPHA, matInput, (1 - ALPHA), 0, matResult);
 
-        iter_num = iter_num + 1;
+        itNum = itNum + 1;
         return matResult;
     }
 

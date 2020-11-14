@@ -1,7 +1,5 @@
 package com.example.doatest;
 
-import org.opencv.core.Point;
-
 public class Ball {
     public int x;
     public int origin_x;
@@ -16,7 +14,7 @@ public class Ball {
     public int b;
     public int size;
     public int end_count;
-    public float speed;
+    public double speed;
 
     public void move() {
         this.x = this.x + (int)((this.dx) * this.speed);
@@ -24,35 +22,17 @@ public class Ball {
     }
 
     public boolean delete() {
-        int margin = 10;
-        if (this.size == 10) {
-            margin = 10;
-        }
-        else if (this.size == 15) {
-            margin = 20;
-        }
-        else if (this.size == 20) {
-            margin = 15;
-        }
-
         if (Math.pow(Math.pow(x - origin_x, 2) + Math.pow(y - origin_y, 2), 0.5) > this.target_r)
             return true;
-
-//        if (this.target_x - margin < this.x && this.x < this.target_x + margin)
-//            return true;
-//        if (this.target_y - margin < this.y && this.y < this.target_y + margin)
-//            return true;
         return false;
     }
 
     public Ball(int x, int y, int target_r, int theta,
-                int r, int g, int b, int size, int end_count, float speed) {
+                int r, int g, int b, int size, int end_count, double speed) {
         this.x = x;
         this.origin_x = x;
         this.y = y;
         this.origin_y = y;
-//        this.target_x = target_x;
-//        this.target_y = target_y;
         this.target_r = target_r;
         this.theta = theta;
         this.r = r;
